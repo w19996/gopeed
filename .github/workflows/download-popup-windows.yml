@@ -45,6 +45,8 @@ jobs:
 
       - name: Build release packages
         shell: pwsh
+        env:
+          WORKSPACE: ${{ github.workspace }}
         run: |
           Invoke-WebRequest -Uri "https://github.com/jrsoftware/issrc/raw/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "ChineseSimplified.isl"
           Move-Item "ChineseSimplified.isl" "C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl" -Force
@@ -83,14 +85,14 @@ jobs:
           flutter build windows --release --dart-define="UPDATE_CHANNEL=windowsInstaller"
           Copy-WindowsRuntime $release
           $installerName = "Gopeed-Download-popup-windows-amd64-setup-$shortSha"
-          $templatePath = "..\..\..\.github\workflows\scripts\windows-installer.iss"
+          $templatePath = Join-Path $env:WORKSPACE ".github\workflows\scripts\windows-installer.iss"
           $setupScript = "build\windows\download-popup-setup.iss"
           (Get-Content $templatePath -Raw).
             Replace("__APP_VERSION__", $version).
             Replace("__SOURCE_DIR__", (Resolve-Path $release).Path).
             Replace("__OUTPUT_DIR__", (Resolve-Path $outputDir).Path).
             Replace("__OUTPUT_BASENAME__", $installerName).
-            Replace("__LICENSE_FILE__", (Resolve-Path "..\..\..\LICENSE").Path).
+            Replace("__LICENSE_FILE__", (Join-Path $env:WORKSPACE "LICENSE")).
             Replace("__ICON_FILE__", (Resolve-Path "assets\icon\icon.ico").Path) |
             Set-Content $setupScript -Encoding UTF8
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" $setupScript
