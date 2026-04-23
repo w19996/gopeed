@@ -301,6 +301,9 @@ class SettingView extends GetView<SettingController> {
     });
 
     buildDownloadCategories() {
+      if (!downloaderCfg.value.extra.downloadCategoriesEnabled) {
+        return null;
+      }
       final categories = downloaderCfg.value.extra.downloadCategories
           .where((c) => !c.isDeleted) // Filter out deleted categories
           .toList();

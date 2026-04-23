@@ -32,6 +32,23 @@ class DownloadCategoryService {
       ),
       DownloadCategory(
         name: '',
+        path: path.join(downloadDir, 'Image'),
+        isBuiltIn: true,
+        nameKey: 'categoryImage',
+        extensions: const [
+          'jpg',
+          'jpeg',
+          'png',
+          'gif',
+          'bmp',
+          'webp',
+          'svg',
+          'ico',
+          'heic',
+        ],
+      ),
+      DownloadCategory(
+        name: '',
         path: path.join(downloadDir, 'Document'),
         isBuiltIn: true,
         nameKey: 'categoryDocument',
@@ -81,6 +98,12 @@ class DownloadCategoryService {
           'tgz',
         ],
       ),
+      DownloadCategory(
+        name: '',
+        path: path.join(downloadDir, 'Other'),
+        isBuiltIn: true,
+        nameKey: 'categoryOther',
+      ),
     ];
   }
 
@@ -119,25 +142,40 @@ class DownloadCategoryService {
 
   static DownloadCategory? matchCategory(
       ExtraConfig extra, String? fileNameOrUrl) {
-    if (!extra.downloadCategoriesEnabled || fileNameOrUrl == null) {
+    if (!extra.downloadCategoriesEnabled) {
       return null;
+    }
+    if (fileNameOrUrl == null) {
+      return activeCategories(extra).cast<DownloadCategory?>().firstWhere(
+            (e) => e?.nameKey == 'categoryOther',
+            orElse: () => null,
+          );
     }
     final fileName = fileNameOrUrl.contains('://')
         ? inferFileNameFromUrl(fileNameOrUrl)
         : fileNameOrUrl;
     if (fileName == null || fileName.trim().isEmpty) {
-      return null;
+      return activeCategories(extra).cast<DownloadCategory?>().firstWhere(
+            (e) => e?.nameKey == 'categoryOther',
+            orElse: () => null,
+          );
     }
     final ext = path.extension(fileName).toLowerCase().replaceFirst('.', '');
     if (ext.isEmpty) {
-      return null;
+      return activeCategories(extra).cast<DownloadCategory?>().firstWhere(
+            (e) => e?.nameKey == 'categoryOther',
+            orElse: () => null,
+          );
     }
     for (final category in activeCategories(extra)) {
       if (category.extensions.map((e) => e.toLowerCase()).contains(ext)) {
         return category;
       }
     }
-    return null;
+    return activeCategories(extra).cast<DownloadCategory?>().firstWhere(
+          (e) => e?.nameKey == 'categoryOther',
+          orElse: () => null,
+        );
   }
 
   static bool shouldApplyAutoCategory(
@@ -165,7 +203,7 @@ class DownloadCategoryService {
     }
     final category =
         matchCategory(config.extra, fileName) ?? matchCategory(config.extra, url);
-    return category?.path ?? currentPath;
+    return category?.path ?? config.downloadDir;
   }
 
   static String normalizePathValue(String text) {
