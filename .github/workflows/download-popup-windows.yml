@@ -1,0 +1,78 @@
+name: download-popup-windows
+
+on:
+  push:
+    branches:
+      - Download-popup
+    paths:
+      - "bind/**"
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
+      - "ui/**"
+      - ".github/workflows/download-popup-windows.yml"
+      - "go.mod"
+      - "go.sum"
+      - "Dockerfile"
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.24"
+  FLUTTER_VERSION: "3.41.6"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable long paths
+        shell: pwsh
+        run: git config --global core.longpaths true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Build release package
+        shell: pwsh
+        run: |
+          go build -tags nosqlite -ldflags="-w -s" -buildmode=c-shared -o ui/flutter/windows/libgopeed.dll github.com/GopeedLab/gopeed/bind/desktop
+          go build -ldflags="-w -s" -o ui/flutter/assets/exec/host.exe github.com/GopeedLab/gopeed/cmd/host
+          go build -ldflags="-w -s" -o ui/flutter/assets/exec/updater.exe github.com/GopeedLab/gopeed/cmd/updater
+
+          cd ui/flutter
+          flutter pub get
+          flutter build windows --release --dart-define="UPDATE_CHANNEL=windowsPortable"
+
+          $release = "build\windows\x64\runner\Release\"
+          $mingw = "C:\Program Files\Git\mingw64\bin"
+          $system = "C:\Windows\System32"
+
+          Copy-Item "$mingw\libstdc++-6.dll" $release -Force
+          Copy-Item "$mingw\libgcc_s_seh-1.dll" $release -Force
+          Copy-Item "$mingw\libwinpthread-1.dll" $release -Force
+          Copy-Item "$system\msvcp140.dll" $release -Force
+          Copy-Item "$system\vcruntime140.dll" $release -Force
+          Copy-Item "$system\vcruntime140_1.dll" $release -Force
+
+          New-Item -Path "build\windows\Output" -ItemType Directory -Force | Out-Null
+          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          $zipName = "Gopeed-Download-popup-windows-amd64-portable-$shortSha.zip"
+          Compress-Archive -Path "$release*" -DestinationPath "build\windows\Output\$zipName" -CompressionLevel Optimal
+          "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: ui/flutter/build/windows/Output/${{ env.ZIP_NAME }}
+          if-no-files-found: error
