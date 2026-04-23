@@ -309,6 +309,9 @@ class _BrowserDownloadPopupPageState extends State<BrowserDownloadPopupPage> {
 
   Future<void> _openFolder(Task task) async {
     await FileExplorer.openAndSelectFile(_taskPath(task));
+    if (mounted) {
+      await windowManager.close();
+    }
   }
 
   Future<void> _open(Task task) async {
@@ -318,6 +321,9 @@ class _BrowserDownloadPopupPageState extends State<BrowserDownloadPopupPage> {
       return;
     }
     await OpenFilex.open(target);
+    if (mounted) {
+      await windowManager.close();
+    }
   }
 
   Future<void> _pause(Task task) async {
