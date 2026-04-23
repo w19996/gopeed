@@ -11,6 +11,7 @@ on:
       - "pkg/**"
       - "ui/**"
       - ".github/workflows/download-popup-windows.yml"
+      - ".github/workflows/scripts/windows-installer.iss"
       - "go.mod"
       - "go.sum"
       - "Dockerfile"
@@ -42,37 +43,69 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
 
-      - name: Build release package
+      - name: Build release packages
         shell: pwsh
         run: |
+          Invoke-WebRequest -Uri "https://github.com/jrsoftware/issrc/raw/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "ChineseSimplified.isl"
+          Move-Item "ChineseSimplified.isl" "C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl" -Force
+
           go build -tags nosqlite -ldflags="-w -s" -buildmode=c-shared -o ui/flutter/windows/libgopeed.dll github.com/GopeedLab/gopeed/bind/desktop
           go build -ldflags="-w -s" -o ui/flutter/assets/exec/host.exe github.com/GopeedLab/gopeed/cmd/host
           go build -ldflags="-w -s" -o ui/flutter/assets/exec/updater.exe github.com/GopeedLab/gopeed/cmd/updater
 
           cd ui/flutter
           flutter pub get
-          flutter build windows --release --dart-define="UPDATE_CHANNEL=windowsPortable"
-
+          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          $versionLine = (Get-Content "pubspec.yaml" | Select-String '^version:').Line
+          $version = ($versionLine -replace '^version:\s*', '') -replace '\+.*$', ''
           $release = "build\windows\x64\runner\Release\"
           $mingw = "C:\Program Files\Git\mingw64\bin"
           $system = "C:\Windows\System32"
+          $outputDir = "build\windows\Output"
 
-          Copy-Item "$mingw\libstdc++-6.dll" $release -Force
-          Copy-Item "$mingw\libgcc_s_seh-1.dll" $release -Force
-          Copy-Item "$mingw\libwinpthread-1.dll" $release -Force
-          Copy-Item "$system\msvcp140.dll" $release -Force
-          Copy-Item "$system\vcruntime140.dll" $release -Force
-          Copy-Item "$system\vcruntime140_1.dll" $release -Force
+          function Copy-WindowsRuntime($target) {
+            Copy-Item "$mingw\libstdc++-6.dll" $target -Force
+            Copy-Item "$mingw\libgcc_s_seh-1.dll" $target -Force
+            Copy-Item "$mingw\libwinpthread-1.dll" $target -Force
+            Copy-Item "$system\msvcp140.dll" $target -Force
+            Copy-Item "$system\vcruntime140.dll" $target -Force
+            Copy-Item "$system\vcruntime140_1.dll" $target -Force
+          }
 
-          New-Item -Path "build\windows\Output" -ItemType Directory -Force | Out-Null
-          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          New-Item -Path $outputDir -ItemType Directory -Force | Out-Null
+
+          flutter build windows --release --dart-define="UPDATE_CHANNEL=windowsPortable"
+          Copy-WindowsRuntime $release
           $zipName = "Gopeed-Download-popup-windows-amd64-portable-$shortSha.zip"
-          Compress-Archive -Path "$release*" -DestinationPath "build\windows\Output\$zipName" -CompressionLevel Optimal
+          Compress-Archive -Path "$release*" -DestinationPath "$outputDir\$zipName" -CompressionLevel Optimal
           "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
 
-      - name: Upload artifact
+          flutter build windows --release --dart-define="UPDATE_CHANNEL=windowsInstaller"
+          Copy-WindowsRuntime $release
+          $installerName = "Gopeed-Download-popup-windows-amd64-setup-$shortSha"
+          $templatePath = "..\..\..\.github\workflows\scripts\windows-installer.iss"
+          $setupScript = "build\windows\download-popup-setup.iss"
+          (Get-Content $templatePath -Raw).
+            Replace("__APP_VERSION__", $version).
+            Replace("__SOURCE_DIR__", (Resolve-Path $release).Path).
+            Replace("__OUTPUT_DIR__", (Resolve-Path $outputDir).Path).
+            Replace("__OUTPUT_BASENAME__", $installerName).
+            Replace("__LICENSE_FILE__", (Resolve-Path "..\..\..\LICENSE").Path).
+            Replace("__ICON_FILE__", (Resolve-Path "assets\icon\icon.ico").Path) |
+            Set-Content $setupScript -Encoding UTF8
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" $setupScript
+          "INSTALLER_NAME=$installerName.exe" >> $env:GITHUB_ENV
+
+      - name: Upload portable artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ZIP_NAME }}
           path: ui/flutter/build/windows/Output/${{ env.ZIP_NAME }}
+          if-no-files-found: error
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.INSTALLER_NAME }}
+          path: ui/flutter/build/windows/Output/${{ env.INSTALLER_NAME }}
           if-no-files-found: error
