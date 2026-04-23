@@ -25,6 +25,7 @@ import '../../../../util/package_info.dart';
 import '../../../../util/scheme_register/scheme_register.dart';
 import '../../../../util/updater.dart';
 import '../../../../util/util.dart';
+import '../../../services/download_category_service.dart';
 import '../../../views/check_list_view.dart';
 import '../../../views/directory_selector.dart';
 import '../../../views/open_in_new.dart';
@@ -278,6 +279,27 @@ class SettingView extends GetView<SettingController> {
     });
 
     // Download categories configuration
+    final buildDownloadCategoriesEnabled =
+        _buildConfigItem('downloadCategoriesEnabled', () {
+      return appController.downloaderConfig.value.extra.downloadCategoriesEnabled
+          ? 'on'.tr
+          : 'off'.tr;
+    }, (Key key) {
+      return Container(
+        alignment: Alignment.centerLeft,
+        child: Switch(
+          value: appController
+              .downloaderConfig.value.extra.downloadCategoriesEnabled,
+          onChanged: (bool value) async {
+            appController.downloaderConfig.update((val) {
+              val!.extra.downloadCategoriesEnabled = value;
+            });
+            await debounceSave();
+          },
+        ),
+      );
+    });
+
     buildDownloadCategories() {
       final categories = downloaderCfg.value.extra.downloadCategories
           .where((c) => !c.isDeleted) // Filter out deleted categories
@@ -308,6 +330,15 @@ class SettingView extends GetView<SettingController> {
                             _getCategoryDisplayName(category),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
+                          if (category.extensions.isNotEmpty)
+                            Text(
+                              '${'categoryExtensions'.tr}: ${DownloadCategoryService.extensionsToText(category.extensions)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).hintColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           Text(
                             category.path,
                             style: TextStyle(
@@ -1756,6 +1787,7 @@ class SettingView extends GetView<SettingController> {
                             child: Column(
                           children: _addDivider([
                             buildDownloadDir(),
+                            buildDownloadCategoriesEnabled(),
                             buildDownloadCategories(),
                             buildMaxRunning(),
                             buildDefaultDirectDownload(),
@@ -2314,6 +2346,11 @@ class SettingView extends GetView<SettingController> {
       text: isEdit ? _getCategoryDisplayName(category) : '',
     );
     final pathController = TextEditingController(text: category?.path ?? '');
+    final extensionsController = TextEditingController(
+      text: isEdit
+          ? DownloadCategoryService.extensionsToText(category.extensions)
+          : '',
+    );
 
     showDialog(
       context: context,
@@ -2334,6 +2371,16 @@ class SettingView extends GetView<SettingController> {
               showLabel: true,
               allowEdit: true,
               showPlaceholderButton: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: extensionsController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'categoryExtensions'.tr,
+                helperText: 'categoryExtensionsHint'.tr,
+              ),
             ),
           ],
         ),
@@ -2356,6 +2403,8 @@ class SettingView extends GetView<SettingController> {
                       nameController.text != _getCategoryDisplayName(category);
                   category.name = nameController.text;
                   category.path = pathController.text;
+                  category.extensions = DownloadCategoryService
+                      .parseExtensionsText(extensionsController.text);
                   if (nameChanged) {
                     category.nameKey = null;
                   }
@@ -2371,6 +2420,9 @@ class SettingView extends GetView<SettingController> {
                     DownloadCategory(
                       name: nameController.text,
                       path: pathController.text,
+                      extensions: DownloadCategoryService.parseExtensionsText(
+                        extensionsController.text,
+                      ),
                     ),
                   ];
                 });

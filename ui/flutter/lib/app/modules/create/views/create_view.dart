@@ -22,6 +22,7 @@ import '../../../../database/database.dart';
 import '../../../../util/input_formatter.dart';
 import '../../../../util/message.dart';
 import '../../../../util/util.dart';
+import '../../../services/download_category_service.dart';
 import '../../../routes/app_pages.dart';
 import '../../../views/compact_checkbox.dart';
 import '../../../views/directory_selector.dart';
@@ -875,14 +876,29 @@ class CreateView extends GetView<CreateController> {
         */
         final isMultiLine = urls.length > 1;
         final isDirect = controller.directDownload.value || isMultiLine;
+        final appController = Get.find<AppController>();
+        final basePath = DownloadCategoryService.normalizePathValue(
+          _pathController.text,
+        );
         final opt = Options(
           name: isMultiLine ? "" : _renameController.text,
-          path: _pathController.text,
+          path: basePath,
           selectFiles: [],
           extra: parseReqOptsExtra(),
         );
         if (isDirect) {
           await Future.wait(urls.map((url) {
+            final taskOpt = Options(
+              name: opt.name,
+              path: DownloadCategoryService.resolveDownloadPath(
+                appController.downloaderConfig.value,
+                currentPath: basePath,
+                fileName: opt.name,
+                url: url,
+              ),
+              selectFiles: opt.selectFiles,
+              extra: opt.extra,
+            );
             return createTask(CreateTask(
               req: Request(
                 url: url,
@@ -890,7 +906,7 @@ class CreateView extends GetView<CreateController> {
                 proxy: parseProxy(),
                 skipVerifyCert: _skipVerifyCertController.value,
               ),
-              opts: opt,
+              opts: taskOpt,
             ));
           }));
           Get.rootDelegate.offNamed(Routes.TASK);
@@ -1037,6 +1053,7 @@ class CreateView extends GetView<CreateController> {
   }
 
   Future<void> _showResolveDialog(ResolveResult rr) async {
+    final appController = Get.find<AppController>();
     final createFormKey = GlobalKey<FormState>();
     final downloadController = RoundedLoadingButtonController();
     return showDialog<void>(
@@ -1105,12 +1122,24 @@ class CreateView extends GetView<CreateController> {
                               final reqs =
                                   controller.selectedIndexes.map((index) {
                                 final file = rr.res.files[index];
+                                final resolvedBasePath =
+                                    DownloadCategoryService.resolveDownloadPath(
+                                  appController.downloaderConfig.value,
+                                  currentPath:
+                                      DownloadCategoryService.normalizePathValue(
+                                    _pathController.text,
+                                  ),
+                                  fileName: file.name,
+                                  url: file.req?.url,
+                                );
                                 return CreateTaskBatchItem(
                                     req: file.req!..proxy = parseProxy(),
                                     opts: Options(
                                         name: file.name,
-                                        path: path.join(_pathController.text,
-                                            rr.res.name, file.path),
+                                        path: path.join(
+                                            resolvedBasePath,
+                                            rr.res.name,
+                                            file.path),
                                         selectFiles: [],
                                         extra: optExtra));
                               }).toList();
@@ -1121,7 +1150,17 @@ class CreateView extends GetView<CreateController> {
                                   rid: rr.id,
                                   opts: Options(
                                       name: _renameController.text,
-                                      path: _pathController.text,
+                                      path: DownloadCategoryService
+                                          .resolveDownloadPath(
+                                        appController.downloaderConfig.value,
+                                        currentPath: DownloadCategoryService
+                                            .normalizePathValue(
+                                          _pathController.text,
+                                        ),
+                                        fileName: _renameController.text.isEmpty
+                                            ? rr.res.name
+                                            : _renameController.text,
+                                      ),
                                       selectFiles: controller.selectedIndexes,
                                       extra: optExtra)));
                             }
@@ -1148,9 +1187,11 @@ class CreateView extends GetView<CreateController> {
 
   Widget _buildCategorySelector(AppController appController) {
     final categories =
-        appController.downloaderConfig.value.extra.downloadCategories
-            .where((c) => !c.isDeleted) // Filter out deleted categories
-            .toList();
+        !appController.downloaderConfig.value.extra.downloadCategoriesEnabled
+            ? const <DownloadCategory>[]
+            : appController.downloaderConfig.value.extra.downloadCategories
+                .where((c) => !c.isDeleted) // Filter out deleted categories
+                .toList();
     if (categories.isEmpty) {
       return const SizedBox.shrink();
     }

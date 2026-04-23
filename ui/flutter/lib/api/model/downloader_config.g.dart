@@ -112,6 +112,8 @@ ExtraConfig _$ExtraConfigFromJson(Map<String, dynamic> json) => ExtraConfig(
       autoStartTasks: json['autoStartTasks'] as bool? ?? false,
       desktopNotification: json['desktopNotification'] as bool? ?? true,
       browserCapturePopup: json['browserCapturePopup'] as bool? ?? true,
+      downloadCategoriesEnabled:
+          json['downloadCategoriesEnabled'] as bool? ?? false,
       downloadCategories: (json['downloadCategories'] as List<dynamic>?)
               ?.map((e) => DownloadCategory.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -132,6 +134,7 @@ Map<String, dynamic> _$ExtraConfigToJson(ExtraConfig instance) =>
       'autoStartTasks': instance.autoStartTasks,
       'desktopNotification': instance.desktopNotification,
       'browserCapturePopup': instance.browserCapturePopup,
+      'downloadCategoriesEnabled': instance.downloadCategoriesEnabled,
       'downloadCategories':
           instance.downloadCategories.map((e) => e.toJson()).toList(),
       'bt': instance.bt.toJson(),
@@ -144,6 +147,10 @@ DownloadCategory _$DownloadCategoryFromJson(Map<String, dynamic> json) =>
       path: json['path'] as String,
       isBuiltIn: json['isBuiltIn'] as bool? ?? false,
       nameKey: json['nameKey'] as String?,
+      extensions: (json['extensions'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
       isDeleted: json['isDeleted'] as bool? ?? false,
     );
 
@@ -161,6 +168,7 @@ Map<String, dynamic> _$DownloadCategoryToJson(DownloadCategory instance) {
   }
 
   writeNotNull('nameKey', instance.nameKey);
+  val['extensions'] = instance.extensions;
   val['isDeleted'] = instance.isDeleted;
   return val;
 }

@@ -114,6 +114,7 @@ class ExtraConfig {
   bool autoStartTasks;
   bool desktopNotification;
   bool browserCapturePopup;
+  bool downloadCategoriesEnabled;
   List<DownloadCategory> downloadCategories;
 
   ExtraConfigBt bt = ExtraConfigBt();
@@ -129,6 +130,7 @@ class ExtraConfig {
     this.autoStartTasks = false,
     this.desktopNotification = true,
     this.browserCapturePopup = true,
+    this.downloadCategoriesEnabled = false,
     this.downloadCategories = const [],
   });
 
@@ -144,6 +146,7 @@ class DownloadCategory {
   String path;
   bool isBuiltIn;
   String? nameKey; // i18n key for built-in categories (e.g., 'categoryMusic')
+  List<String> extensions;
   bool
       isDeleted; // Mark built-in categories as deleted instead of removing them
 
@@ -152,6 +155,7 @@ class DownloadCategory {
     required this.path,
     this.isBuiltIn = false,
     this.nameKey,
+    this.extensions = const [],
     this.isDeleted = false,
   });
 

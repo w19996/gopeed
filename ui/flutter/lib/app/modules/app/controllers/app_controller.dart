@@ -21,6 +21,7 @@ import '../../../../api/api.dart';
 import '../../../../api/model/create_task.dart';
 import '../../../../api/model/downloader_config.dart';
 import '../../../../api/model/install_extension.dart';
+import '../../../../api/model/options.dart' as api_model;
 import '../../../../api/model/request.dart';
 import '../../../../api/model/result.dart';
 import '../../../../core/common/start_config.dart';
@@ -38,6 +39,7 @@ import '../../../../util/util.dart';
 import '../../../routes/app_pages.dart';
 import '../../../rpc/rpc.dart';
 import '../../../services/browser_download_popup.dart';
+import '../../../services/download_category_service.dart';
 import '../../redirect/views/redirect_view.dart';
 import '../../../services/notification_service.dart';
 
@@ -359,6 +361,7 @@ class AppController extends GetxController with WindowListener, TrayListener {
                 ? jsonDecode(trimmedParams)
                 : _decodeParams(trimmedParams),
           );
+          _applyAutoCategory(createTaskParams);
           if (!silent || pendingUpdateTask.value != null) {
             await _writePopupDebugLog(
                 'rpc /create redirect to main window silent=$silent pendingUpdate=${pendingUpdateTask.value != null}');
@@ -644,6 +647,8 @@ class AppController extends GetxController with WindowListener, TrayListener {
     // Initialize default download categories if empty
     if (extra.downloadCategories.isEmpty) {
       _initDefaultDownloadCategories();
+    } else {
+      _migrateDownloadCategories();
     }
 
     // Initialize default GitHub mirrors if empty
@@ -655,35 +660,41 @@ class AppController extends GetxController with WindowListener, TrayListener {
   void _initDefaultDownloadCategories() {
     final extra = downloaderConfig.value.extra;
     final downloadDir = downloaderConfig.value.downloadDir;
+    extra.downloadCategories =
+        DownloadCategoryService.buildDefaultCategories(downloadDir);
+  }
 
-    // Add default built-in categories with i18n keys
-    // No need to set initial name value, it will be retrieved via nameKey
-    extra.downloadCategories = [
-      DownloadCategory(
-        name: '',
-        path: path.join(downloadDir, 'Music'),
-        isBuiltIn: true,
-        nameKey: 'categoryMusic',
-      ),
-      DownloadCategory(
-        name: '',
-        path: path.join(downloadDir, 'Video'),
-        isBuiltIn: true,
-        nameKey: 'categoryVideo',
-      ),
-      DownloadCategory(
-        name: '',
-        path: path.join(downloadDir, 'Document'),
-        isBuiltIn: true,
-        nameKey: 'categoryDocument',
-      ),
-      DownloadCategory(
-        name: '',
-        path: path.join(downloadDir, 'Program'),
-        isBuiltIn: true,
-        nameKey: 'categoryProgram',
-      ),
-    ];
+  void _migrateDownloadCategories() {
+    final extra = downloaderConfig.value.extra;
+    final defaults = DownloadCategoryService.buildDefaultCategories(
+      downloaderConfig.value.downloadDir,
+    );
+    final byKey = {
+      for (final category in extra.downloadCategories)
+        if (category.nameKey != null) category.nameKey!: category,
+    };
+    for (final item in defaults) {
+      final existing = byKey[item.nameKey];
+      if (existing == null) {
+        extra.downloadCategories = [...extra.downloadCategories, item];
+        continue;
+      }
+      if (existing.extensions.isEmpty) {
+        existing.extensions = item.extensions;
+      }
+    }
+  }
+
+  void _applyAutoCategory(CreateTask createTask) {
+    final opts = createTask.opts ??= api_model.Options();
+    final currentPath =
+        opts.path.isEmpty ? downloaderConfig.value.downloadDir : opts.path;
+    opts.path = DownloadCategoryService.resolveDownloadPath(
+      downloaderConfig.value,
+      currentPath: currentPath,
+      fileName: opts.name,
+      url: createTask.req?.url,
+    );
   }
 
   void _initDefaultGithubMirrors() {
