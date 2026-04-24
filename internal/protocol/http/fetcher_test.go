@@ -1024,6 +1024,27 @@ func TestFetcherManager_ParseName(t *testing.T) {
 			},
 			want: "github.com",
 		},
+		{
+			name: "response content disposition query",
+			args: args{
+				u: "https://objects.githubusercontent.com/github-production-release-asset?id=1&response-content-disposition=attachment%3B%20filename%3D%22Gopeed-v1.9.3-windows-amd64.zip%22",
+			},
+			want: "Gopeed-v1.9.3-windows-amd64.zip",
+		},
+		{
+			name: "filename query",
+			args: args{
+				u: "https://example.com/download?filename=demo.7z",
+			},
+			want: "demo.7z",
+		},
+		{
+			name: "tpl query",
+			args: args{
+				u: "https://gopeed.com/api/download?tpl=Gopeed-v1.9.3-windows-amd64.zip",
+			},
+			want: "Gopeed-v1.9.3-windows-amd64.zip",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

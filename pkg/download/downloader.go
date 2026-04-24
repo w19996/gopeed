@@ -1320,6 +1320,7 @@ func (d *Downloader) doStart(task *Task) (err error) {
 		}
 
 		if needCreate {
+			d.applyResolvedDownloadCategory(task)
 			if task.fetcherManager.AutoRename() {
 				d.checkDuplicateLock.Lock()
 				defer d.checkDuplicateLock.Unlock()

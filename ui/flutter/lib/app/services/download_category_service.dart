@@ -127,6 +127,28 @@ class DownloadCategoryService {
   static String? inferFileNameFromUrl(String url) {
     try {
       final uri = Uri.parse(url);
+      for (final key in const [
+        'response-content-disposition',
+        'filename',
+        'file',
+        'name',
+        'tpl',
+      ]) {
+        final value = uri.queryParameters[key]?.trim();
+        if (value != null && value.isNotEmpty) {
+          if (key == 'response-content-disposition') {
+            final match = RegExp(
+              r'''filename\*?=(?:UTF-8''|")?([^";]+)''',
+              caseSensitive: false,
+            ).firstMatch(value);
+            final raw = match?.group(1)?.trim();
+            if (raw != null && raw.isNotEmpty) {
+              return Uri.decodeComponent(raw.replaceAll('"', ''));
+            }
+          }
+          return Uri.decodeComponent(value);
+        }
+      }
       if (uri.pathSegments.isEmpty) {
         return null;
       }
@@ -141,41 +163,39 @@ class DownloadCategoryService {
   }
 
   static DownloadCategory? matchCategory(
-      ExtraConfig extra, String? fileNameOrUrl) {
+    ExtraConfig extra,
+    String? fileNameOrUrl, {
+    bool allowOther = true,
+  }) {
     if (!extra.downloadCategoriesEnabled) {
       return null;
     }
-    if (fileNameOrUrl == null) {
+    DownloadCategory? otherCategory() {
       return activeCategories(extra).cast<DownloadCategory?>().firstWhere(
             (e) => e?.nameKey == 'categoryOther',
             orElse: () => null,
           );
+    }
+
+    if (fileNameOrUrl == null) {
+      return null;
     }
     final fileName = fileNameOrUrl.contains('://')
         ? inferFileNameFromUrl(fileNameOrUrl)
         : fileNameOrUrl;
     if (fileName == null || fileName.trim().isEmpty) {
-      return activeCategories(extra).cast<DownloadCategory?>().firstWhere(
-            (e) => e?.nameKey == 'categoryOther',
-            orElse: () => null,
-          );
+      return null;
     }
     final ext = path.extension(fileName).toLowerCase().replaceFirst('.', '');
     if (ext.isEmpty) {
-      return activeCategories(extra).cast<DownloadCategory?>().firstWhere(
-            (e) => e?.nameKey == 'categoryOther',
-            orElse: () => null,
-          );
+      return otherCategory();
     }
     for (final category in activeCategories(extra)) {
       if (category.extensions.map((e) => e.toLowerCase()).contains(ext)) {
         return category;
       }
     }
-    return activeCategories(extra).cast<DownloadCategory?>().firstWhere(
-          (e) => e?.nameKey == 'categoryOther',
-          orElse: () => null,
-        );
+    return allowOther ? otherCategory() : null;
   }
 
   static bool shouldApplyAutoCategory(
@@ -201,8 +221,16 @@ class DownloadCategoryService {
     if (!shouldApplyAutoCategory(config, currentPath)) {
       return currentPath;
     }
-    final category =
-        matchCategory(config.extra, fileName) ?? matchCategory(config.extra, url);
+    final category = matchCategory(
+          config.extra,
+          fileName,
+          allowOther: true,
+        ) ??
+        matchCategory(
+          config.extra,
+          url,
+          allowOther: false,
+        );
     return category?.path ?? config.downloadDir;
   }
 

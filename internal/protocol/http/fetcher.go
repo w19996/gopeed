@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -401,14 +399,7 @@ func (f *Fetcher) Resolve(req *base.Request, opts *base.Options) error {
 		file.Name = parseFilename(contentDisposition)
 	}
 	if file.Name == "" {
-		file.Name = path.Base(httpReq.URL.Path)
-		if file.Name != "" {
-			// Use PathUnescape instead of QueryUnescape to correctly handle %2B (should decode to +, not space)
-			file.Name, _ = url.PathUnescape(file.Name)
-		}
-	}
-	if file.Name == "" || file.Name == "/" || file.Name == "." {
-		file.Name = httpReq.URL.Hostname()
+		file.Name = parseFilenameFromURL(resp.Request.URL.String())
 	}
 
 	res.Files = append(res.Files, file)

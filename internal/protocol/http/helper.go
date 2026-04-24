@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -254,6 +255,39 @@ func parseFilename(contentDisposition string) string {
 
 	// Fallback to manual parsing
 	return parseFilenameFallback(contentDisposition)
+}
+
+func parseFilenameFromURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+
+	query := parsedURL.Query()
+	if disposition := query.Get("response-content-disposition"); disposition != "" {
+		if filename := parseFilename(disposition); filename != "" {
+			return filename
+		}
+	}
+
+	for _, key := range []string{"filename", "file", "name", "tpl"} {
+		if value := strings.TrimSpace(query.Get(key)); value != "" {
+			return decodeFilenameParam(value)
+		}
+	}
+
+	name := path.Base(parsedURL.Path)
+	if name != "" && name != "/" && name != "." {
+		if decoded, err := url.PathUnescape(name); err == nil && decoded != "" {
+			return decoded
+		}
+		return name
+	}
+
+	return parsedURL.Hostname()
 }
 
 // parseFilenameExtended handles RFC 5987 extended notation (filename*=)

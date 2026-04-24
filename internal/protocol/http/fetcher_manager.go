@@ -1,9 +1,6 @@
 package http
 
 import (
-	"net/url"
-	"path"
-
 	"github.com/GopeedLab/gopeed/internal/fetcher"
 	"github.com/GopeedLab/gopeed/pkg/base"
 	fhttp "github.com/GopeedLab/gopeed/pkg/protocol/http"
@@ -47,16 +44,7 @@ func (fm *FetcherManager) Build() fetcher.Fetcher {
 }
 
 func (fm *FetcherManager) ParseName(u string) string {
-	var name string
-	url, err := url.Parse(u)
-	if err != nil {
-		return ""
-	}
-	name = path.Base(url.Path)
-	if name == "" || name == "/" || name == "." {
-		name = url.Hostname()
-	}
-	return name
+	return parseFilenameFromURL(u)
 }
 
 func (fm *FetcherManager) AutoRename() bool {
